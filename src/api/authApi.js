@@ -16,7 +16,7 @@ export const logoutApi = async () => {
 }
 
 
-export const getMeApi = async () => {
+export const getMeApi = async (page = 1) => {
     const res = await api.get('/auth/me');
     return res.data
 }
