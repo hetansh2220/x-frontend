@@ -4,31 +4,35 @@ import { selectCurrentUser } from "@/redux/authSlice";
 import Navbar from "@/components/navbar";
 import CreatePost from "@/components/post/createPost";
 import PostCard from "@/components/post/postCard";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getPostsApi } from "@/api/postApi";
-import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationLink,
-    PaginationNext,
-    PaginationPrevious,
-} from "@/components/ui/pagination";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import InfiniteScroll from 'react-infinite-scroll-component';
 
 export default function Home() {
     const user = useSelector(selectCurrentUser);
-    const [page, setPage] = useState(1);
-
-    const { data, isLoading, isError } = useQuery({
-        queryKey: ["posts", page],
-        queryFn: () => getPostsApi(page),
-        placeholderData: keepPreviousData,
+    const {
+        data,
+        isLoading,
+        isError,
+        fetchNextPage,
+        hasNextPage,
+    } = useInfiniteQuery({
+        queryKey: ["posts"],
+        queryFn: ({ pageParam = 1 }) => getPostsApi(pageParam),
+        initialPageParam: 1,
+        getNextPageParam: (
+            { currentPage, totalPages }
+        ) => {
+            console.log(currentPage, totalPages)
+            return currentPage < totalPages
+                ? currentPage + 1
+                : undefined;
+        },
     });
 
     if (!user) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
 
-    const posts = data?.posts ?? [];
-    const totalPages = data?.totalPages ?? 1;
+    const posts = data?.pages.flatMap((page) => page.posts) ?? [];
 
     return (
         <div className="min-h-screen bg-muted/30">
@@ -46,47 +50,27 @@ export default function Home() {
                     <p className="py-8 text-sm text-muted-foreground">No posts yet. Be the first!</p>
                 )}
 
-                {posts.map((post) => (
-                    <PostCard key={post.id} post={post} />
-                ))}
+                <InfiniteScroll
+                    dataLength={posts.length}
+                    next={fetchNextPage}
+                    hasMore={!!hasNextPage}
+                    loader={
+                        <p className="py-4 text-center text-muted-foreground">
+                            Loading more posts...
+                        </p>
+                    }
+                    endMessage={
+                        <p className="py-4 text-center text-muted-foreground">
+                            You have seen everything.
+                        </p>
+                    }
+                >
+                    {posts.map((post) => (
+                        <PostCard key={post._id} post={post} />
+                    ))}
+                </InfiniteScroll>
 
-                {totalPages > 1 && (
-                    <Pagination className="mt-4">
-                        <PaginationContent>
-                            <PaginationItem>
-                                <PaginationPrevious
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                    className={
-                                        page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
-                                    }
-                                />
-                            </PaginationItem>
 
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                                <PaginationItem key={p}>
-                                    <PaginationLink
-                                        isActive={p === page}
-                                        onClick={() => setPage(p)}
-                                        className="cursor-pointer"
-                                    >
-                                        {p}
-                                    </PaginationLink>
-                                </PaginationItem>
-                            ))}
-
-                            <PaginationItem>
-                                <PaginationNext
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                    className={
-                                        page >= totalPages
-                                            ? "pointer-events-none opacity-50"
-                                            : "cursor-pointer"
-                                    }
-                                />
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
-                )}
             </main>
         </div>
     );
